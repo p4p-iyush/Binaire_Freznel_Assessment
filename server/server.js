@@ -17,7 +17,7 @@ const io = new Server(server, {
     }
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // ==================== Middleware ====================
 
@@ -121,7 +121,7 @@ io.on("connection", (socket) => {
 
 // ==================== Start Server ====================
 
-server.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+server.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server is running on port ${PORT}`);
 });
 
