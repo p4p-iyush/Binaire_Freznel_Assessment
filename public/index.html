@@ -1,380 +1,364 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <title>Binaire | CSV Queue</title>
+  <title>Binaire | CSV Queue</title>
 
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    * {
+      image-rendering: pixelated;
+    }
 
-    <style>
-      * {
-        image-rendering: pixelated;
-      }
+    body {
+      font-family: "Courier New", monospace;
+      background:
+        linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px),
+        #0b0f0e;
+      background-size: 16px 16px;
+    }
 
-      body {
-        font-family: "Courier New", monospace;
-        background:
-          linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-          #0b0f0e;
-        background-size: 16px 16px;
-      }
+    .pixel-border {
+      border: 3px solid #d8e8df;
+      box-shadow: 4px 4px 0 #000;
+    }
 
-      h1, h2, h3, .pixel-button, select#priority, span.text-\[10px\], span.text-xs {
-        font-family: "Press Start 2P", "Courier New", monospace;
-      }
+    .pixel-card {
+      border: 2px solid #46564e;
+      box-shadow: 4px 4px 0 #000;
+    }
 
-      /* pixel notch corners on all boxed elements */
-      .pixel-border,
-      .pixel-card,
-      .pixel-button {
-        clip-path: polygon(
-          0 6px, 6px 6px, 6px 0,
-          calc(100% - 6px) 0, calc(100% - 6px) 6px, 100% 6px,
-          100% calc(100% - 6px), calc(100% - 6px) calc(100% - 6px), calc(100% - 6px) 100%,
-          6px 100%, 6px calc(100% - 6px), 0 calc(100% - 6px)
-        );
-      }
+    .pixel-button {
+      border: 3px solid #d8e8df;
+      box-shadow: 4px 4px 0 #000;
+      transition: .1s;
+    }
 
-      .pixel-border {
-        border: 3px solid #d8e8df;
-        box-shadow:
-          6px 6px 0 #000,
-          0 0 0 2px #1d2924;
-      }
+    .pixel-button:hover {
+      transform: translate(2px, 2px);
+      box-shadow: 2px 2px 0 #000;
+    }
 
-      .pixel-button {
-        border: 3px solid #d8e8df;
-        box-shadow: 6px 6px 0 #000;
-        transition: all 0.1s steps(2);
-        letter-spacing: 1px;
-      }
+    .pixel-button:active {
+      transform: translate(4px, 4px);
+      box-shadow: none;
+    }
 
-      .pixel-button:hover {
-        transform: translate(3px, 3px);
-        box-shadow: 3px 3px 0 #000;
-      }
+    .scanline {
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 3px,
+        rgba(255,255,255,.015) 3px,
+        rgba(255,255,255,.015) 4px
+      );
+    }
+  </style>
+</head>
 
-      .pixel-button:active {
-        transform: translate(6px, 6px);
-        box-shadow: none;
-      }
+<body class="scanline min-h-screen text-[#d8e8df]">
 
-      .pixel-card {
-        border: 2px solid #46564e;
-        box-shadow: 6px 6px 0 #000;
-      }
+  <!-- NAVBAR -->
+  <nav class="border-b-4 border-[#d8e8df] bg-[#111714]">
+    <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
 
-      .scanline {
-        background: repeating-linear-gradient(
-          0deg,
-          transparent,
-          transparent 3px,
-          rgba(255, 255, 255, 0.015) 3px,
-          rgba(255, 255, 255, 0.015) 4px
-        );
-      }
+      <div>
+        <h1 class="text-2xl font-black tracking-widest">
+          BIN<span class="text-[#8cff66]">A</span>IRE
+        </h1>
 
-      ::selection { background: #8cff66; color: #0b0f0e; }
-      ::-webkit-scrollbar { width: 12px; }
-      ::-webkit-scrollbar-track { background: #0b0f0e; }
-      ::-webkit-scrollbar-thumb { background: #46564e; border: 2px solid #0b0f0e; }
-    </style>
-  </head>
+        <p class="mt-1 text-xs uppercase tracking-widest text-[#718078]">
+          CSV QUEUE SYSTEM
+        </p>
+      </div>
 
-  <body class="scanline min-h-screen text-[#d8e8df]">
+      <div class="flex items-center gap-3 border-2 border-[#46564e] bg-[#0b0f0e] px-3 py-2">
+        <span
+          id="connectionDot"
+          class="h-3 w-3 bg-yellow-400"
+        ></span>
 
-    <!-- NAVBAR -->
-    <nav class="border-b-4 border-[#d8e8df] bg-[#111714]">
-      <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
+        <span
+          id="connectionStatus"
+          class="text-xs uppercase tracking-wider text-[#9eafa6]"
+        >
+          Connecting...
+        </span>
+      </div>
+
+    </div>
+  </nav>
+
+
+  <!-- MAIN -->
+  <main class="mx-auto max-w-7xl px-6 py-8">
+
+    <!-- HEADER -->
+    <section class="mb-8">
+
+      <p class="mb-2 text-xs font-bold uppercase tracking-[0.3em] text-[#8cff66]">
+        SYSTEM // ONLINE
+      </p>
+
+      <h2 class="text-3xl font-black uppercase tracking-wider md:text-4xl">
+        CSV Processing Queue
+      </h2>
+
+      <p class="mt-3 max-w-2xl text-sm leading-6 text-[#718078]">
+        Upload multiple CSV files and assign priority individually.
+        Monitor processing in real time.
+      </p>
+
+    </section>
+
+
+    <!-- UPLOAD CARD -->
+    <section class="pixel-border mb-8 bg-[#111714] p-6">
+
+      <div class="mb-6 flex items-center gap-3">
+
+        <span class="text-[#8cff66]">▶</span>
 
         <div>
-          <h1 class="text-2xl font-black tracking-widest">
-            BIN<span class="text-[#8cff66]">A</span>IRE
-          </h1>
+          <h3 class="text-lg font-black uppercase tracking-wider">
+            Upload Files
+          </h3>
 
-          <p class="mt-1 text-xs uppercase tracking-widest text-[#718078]">
-            CSV QUEUE SYSTEM
+          <p class="text-xs text-[#718078]">
+            SELECT CSV FILES AND SET PRIORITY
           </p>
-        </div>
-
-        <div class="pixel-card flex items-center gap-3 bg-[#0b0f0e] px-3 py-2">
-          <span
-            id="connectionDot"
-            class="h-3 w-3 bg-yellow-400"
-          ></span>
-
-          <span
-            id="connectionStatus"
-            class="text-xs uppercase tracking-wider text-[#9eafa6]"
-          >
-            Connecting...
-          </span>
         </div>
 
       </div>
-    </nav>
 
 
-    <!-- MAIN -->
-    <main class="mx-auto max-w-7xl px-6 py-8">
+      <form id="uploadForm">
 
-      <!-- HEADER -->
-      <section class="mb-8">
+        <!-- FILE SELECTOR -->
+        <label class="mb-2 block text-xs font-bold uppercase tracking-wider text-[#9eafa6]">
+          CSV Files
+        </label>
 
-        <p class="mb-2 text-xs font-bold uppercase tracking-[0.3em] text-[#8cff66]">
-          SYSTEM // ONLINE
-        </p>
+        <label
+          for="fileInput"
+          class="flex min-h-32 cursor-pointer flex-col items-center justify-center border-2 border-dashed border-[#46564e] bg-[#0b0f0e] px-6 text-center transition hover:border-[#8cff66]"
+        >
 
-        <h2 class="text-3xl font-black uppercase tracking-wider md:text-4xl">
-          CSV Processing Queue
-        </h2>
-
-        <p class="mt-3 max-w-2xl text-sm leading-6 text-[#718078]">
-          Upload numeric CSV files, assign priority and monitor the
-          processing queue in real time.
-        </p>
-
-      </section>
-
-
-      <!-- UPLOAD -->
-      <section class="pixel-border mb-8 bg-[#111714] p-6">
-
-        <div class="mb-6 flex items-center gap-3">
-          <span class="text-[#8cff66]">▶</span>
-
-          <div>
-            <h3 class="text-lg font-black uppercase tracking-wider">
-              Upload Files
-            </h3>
-
-            <p class="text-xs text-[#718078]">
-              SELECT CSV FILES FOR PROCESSING
-            </p>
+          <div class="mb-3 text-4xl text-[#8cff66]">
+            +
           </div>
-        </div>
-
-
-        <form id="uploadForm" class="grid gap-6 md:grid-cols-3">
-
-          <!-- FILE -->
-          <div class="md:col-span-2">
-
-            <label class="mb-2 block text-xs font-bold uppercase tracking-wider text-[#9eafa6]">
-              CSV Files
-            </label>
-
-            <label
-              for="fileInput"
-              class="pixel-card flex min-h-36 cursor-pointer flex-col items-center justify-center border-dashed bg-[#0b0f0e] px-6 text-center transition hover:border-[#8cff66] hover:bg-[#111714]"
-            >
-
-              <div class="mb-4 text-4xl text-[#8cff66]">
-                +
-              </div>
-
-              <span
-                id="fileName"
-                class="text-sm text-[#718078]"
-              >
-                SELECT CSV FILES
-              </span>
-
-              <span class="mt-2 text-[10px] uppercase tracking-wider text-[#46564e]">
-                MULTIPLE FILES SUPPORTED
-              </span>
-
-              <input
-                id="fileInput"
-                name="files"
-                type="file"
-                accept=".csv"
-                multiple
-                class="hidden"
-                required
-              />
-
-            </label>
-
-          </div>
-
-
-          <!-- PRIORITY -->
-          <div>
-
-            <label
-              for="priority"
-              class="mb-2 block text-xs font-bold uppercase tracking-wider text-[#9eafa6]"
-            >
-              Priority
-            </label>
-
-            <select
-              id="priority"
-              name="priority"
-              class="pixel-card w-full bg-[#0b0f0e] px-4 py-3 text-sm font-bold text-[#d8e8df] outline-none focus:border-[#8cff66]"
-              required
-            >
-              <option value="high">HIGH PRIORITY</option>
-              <option value="low">LOW PRIORITY</option>
-            </select>
-
-
-            <button
-              type="submit"
-              id="uploadButton"
-              class="pixel-button mt-5 w-full bg-[#8cff66] px-5 py-3 text-sm font-black uppercase tracking-wider text-[#0b0f0e] hover:bg-[#a7ff8b]"
-            >
-              Upload & Process
-            </button>
-
-          </div>
-
-        </form>
-
-
-        <!-- MESSAGE -->
-        <div
-          id="uploadMessage"
-          class="pixel-card mt-5 hidden px-4 py-3 text-xs font-bold uppercase"
-        ></div>
-
-      </section>
-
-
-      <!-- STATISTICS -->
-      <section class="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-
-        <div class="pixel-card bg-[#111714] p-5">
-          <p class="text-[10px] font-bold uppercase tracking-widest text-[#718078]">
-            Waiting
-          </p>
-
-          <p
-            id="waitingCount"
-            class="mt-3 text-3xl font-black text-[#d8e8df]"
-          >
-            0
-          </p>
-        </div>
-
-
-        <div class="pixel-card bg-[#111714] p-5">
-          <p class="text-[10px] font-bold uppercase tracking-widest text-[#718078]">
-            Processing
-          </p>
-
-          <p
-            id="processingCount"
-            class="mt-3 text-3xl font-black text-[#ffd166]"
-          >
-            0
-          </p>
-        </div>
-
-
-        <div class="pixel-card bg-[#111714] p-5">
-          <p class="text-[10px] font-bold uppercase tracking-widest text-[#718078]">
-            Completed
-          </p>
-
-          <p
-            id="completedCount"
-            class="mt-3 text-3xl font-black text-[#8cff66]"
-          >
-            0
-          </p>
-        </div>
-
-
-        <div class="pixel-card bg-[#111714] p-5">
-          <p class="text-[10px] font-bold uppercase tracking-widest text-[#718078]">
-            Workers
-          </p>
-
-          <p
-            id="workerCount"
-            class="mt-3 text-3xl font-black text-[#6ecbff]"
-          >
-            0 / 2
-          </p>
-        </div>
-
-      </section>
-
-
-      <!-- QUEUE -->
-      <section class="pixel-border bg-[#111714] p-6">
-
-        <div class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-
-          <div>
-            <div class="flex items-center gap-3">
-              <span class="text-[#8cff66]">▶</span>
-
-              <h3 class="text-lg font-black uppercase tracking-wider">
-                Processing Queue
-              </h3>
-            </div>
-
-            <p class="mt-2 text-xs uppercase tracking-wider text-[#718078]">
-              Live status // all clients
-            </p>
-          </div>
-
 
           <span
-            class="pixel-card border-[#8cff66] bg-[#8cff66]/10 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-[#8cff66]"
+            id="fileName"
+            class="text-sm text-[#718078]"
           >
-            ● LIVE
+            SELECT CSV FILES
           </span>
 
-        </div>
+          <span class="mt-2 text-[10px] uppercase tracking-wider text-[#46564e]">
+            MULTIPLE FILES SUPPORTED
+          </span>
+
+          <input
+            id="fileInput"
+            name="files"
+            type="file"
+            accept=".csv"
+            multiple
+            class="hidden"
+            required
+          />
+
+        </label>
 
 
-        <!-- QUEUE -->
-        <div id="queueContainer" class="space-y-4">
+        <!-- SELECTED FILES -->
+        <div id="selectedFilesContainer" class="mt-6 hidden">
+
+          <div class="mb-3 flex items-center justify-between">
+
+            <h4 class="text-xs font-black uppercase tracking-widest text-[#9eafa6]">
+              Selected Files
+            </h4>
+
+            <span
+              id="selectedFileCount"
+              class="text-xs text-[#718078]"
+            >
+              0 FILES
+            </span>
+
+          </div>
+
 
           <div
-            id="emptyQueue"
-            class="pixel-card border-dashed py-14 text-center"
+            id="selectedFiles"
+            class="space-y-3"
           >
-
-            <p class="text-sm font-bold uppercase text-[#718078]">
-              Queue Empty
-            </p>
-
-            <p class="mt-2 text-[10px] uppercase tracking-wider text-[#46564e]">
-              Upload a CSV file to begin
-            </p>
-
           </div>
 
         </div>
 
-      </section>
 
-    </main>
+        <!-- UPLOAD BUTTON -->
+        <button
+          type="submit"
+          id="uploadButton"
+          class="pixel-button mt-6 w-full bg-[#8cff66] px-5 py-4 text-sm font-black uppercase tracking-wider text-[#0b0f0e] hover:bg-[#a7ff8b]"
+        >
+          Upload & Process
+        </button>
 
-
-    <!-- FOOTER -->
-    <footer class="border-t-4 border-[#d8e8df] bg-[#111714] py-6 text-center">
-
-      <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-[#718078]">
-        BINARE FREZNEL ASSESSMENT // MULTI-USER QUEUE SYSTEM
-      </p>
-
-    </footer>
+      </form>
 
 
-    <script src="./app.js"></script>
+      <!-- MESSAGE -->
+      <div
+        id="uploadMessage"
+        class="mt-5 hidden border-2 px-4 py-3 text-xs font-bold uppercase"
+      ></div>
 
-  </body>
+    </section>
+
+
+    <!-- STATISTICS -->
+    <section class="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+      <div class="pixel-card bg-[#111714] p-5">
+        <p class="text-[10px] font-bold uppercase tracking-widest text-[#718078]">
+          Waiting
+        </p>
+
+        <p
+          id="waitingCount"
+          class="mt-3 text-3xl font-black"
+        >
+          0
+        </p>
+      </div>
+
+
+      <div class="pixel-card bg-[#111714] p-5">
+        <p class="text-[10px] font-bold uppercase tracking-widest text-[#718078]">
+          Processing
+        </p>
+
+        <p
+          id="processingCount"
+          class="mt-3 text-3xl font-black text-[#ffd166]"
+        >
+          0
+        </p>
+      </div>
+
+
+      <div class="pixel-card bg-[#111714] p-5">
+        <p class="text-[10px] font-bold uppercase tracking-widest text-[#718078]">
+          Completed
+        </p>
+
+        <p
+          id="completedCount"
+          class="mt-3 text-3xl font-black text-[#8cff66]"
+        >
+          0
+        </p>
+      </div>
+
+
+      <div class="pixel-card bg-[#111714] p-5">
+        <p class="text-[10px] font-bold uppercase tracking-widest text-[#718078]">
+          Workers
+        </p>
+
+        <p
+          id="workerCount"
+          class="mt-3 text-3xl font-black text-[#6ecbff]"
+        >
+          0 / 2
+        </p>
+      </div>
+
+    </section>
+
+
+    <!-- QUEUE -->
+    <section class="pixel-border bg-[#111714] p-6">
+
+      <div class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+
+        <div>
+
+          <div class="flex items-center gap-3">
+
+            <span class="text-[#8cff66]">▶</span>
+
+            <h3 class="text-lg font-black uppercase tracking-wider">
+              Processing Queue
+            </h3>
+
+          </div>
+
+          <p class="mt-2 text-xs uppercase tracking-wider text-[#718078]">
+            Live status // all clients
+          </p>
+
+        </div>
+
+
+        <span
+          class="border-2 border-[#8cff66] bg-[#8cff66]/10 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-[#8cff66]"
+        >
+          ● LIVE
+        </span>
+
+      </div>
+
+
+      <!-- QUEUE CONTAINER -->
+      <div
+        id="queueContainer"
+        class="space-y-4"
+      >
+
+        <div
+          id="emptyQueue"
+          class="border-2 border-dashed border-[#46564e] py-14 text-center"
+        >
+
+          <p class="text-sm font-bold uppercase text-[#718078]">
+            Queue Empty
+          </p>
+
+          <p class="mt-2 text-[10px] uppercase tracking-wider text-[#46564e]">
+            Upload a CSV file to begin
+          </p>
+
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+
+  <!-- FOOTER -->
+  <footer class="border-t-4 border-[#d8e8df] bg-[#111714] py-6 text-center">
+
+    <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-[#718078]">
+      BINARE FREZNEL ASSESSMENT // MULTI-USER QUEUE SYSTEM
+    </p>
+
+  </footer>
+
+
+  <script src="./app.js"></script>
+
+</body>
 </html>

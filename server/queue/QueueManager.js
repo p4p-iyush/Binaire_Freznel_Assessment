@@ -34,6 +34,8 @@ class QueueManager {
         const job = {
             processId: `P-${Date.now()}-${this.processCounter++}`,
 
+            queueNumber: this.processCounter - 1,
+
             userId,
 
             fileName: file.originalname,
@@ -53,15 +55,61 @@ class QueueManager {
 
         this.queue.push(job);
 
-        // High priority jobs come first
+        // HIGH priority first, FIFO within same priority
         this.sortQueue();
 
         this.emitQueueUpdate();
 
-        // Start processing if worker is available
-        this.processNext();
+        // Schedule processing after current upload
+        // operations have had a chance to enter the queue.
+        this.scheduleProcessing();
 
         return job;
+    }
+
+
+    // ==========================================
+    // Schedule queue processing
+    // ==========================================
+
+    scheduleProcessing() {
+
+        if (this.processingScheduled) {
+            return;
+        }
+
+        this.processingScheduled = true;
+
+        setTimeout(() => {
+
+            this.processingScheduled = false;
+
+            this.processNext();
+
+        }, 1000);
+    }
+
+
+    // ==========================================
+    // Start next available jobs
+    // ==========================================
+
+    processNext() {
+
+        while (
+            this.activeWorkers < this.maxWorkers &&
+            this.queue.length > 0
+        ) {
+
+            // Always sort before taking the next job
+            this.sortQueue();
+
+            const job = this.queue.shift();
+
+            this.startJob(job);
+        }
+
+        this.emitQueueUpdate();
     }
 
     // ==========================================
@@ -81,24 +129,6 @@ class QueueManager {
         });
     }
 
-    // ==========================================
-    // Start next available jobs
-    // ==========================================
-
-    processNext() {
-
-        while (
-            this.activeWorkers < this.maxWorkers &&
-            this.queue.length > 0
-        ) {
-
-            const job = this.queue.shift();
-
-            this.startJob(job);
-        }
-
-        this.emitQueueUpdate();
-    }
 
     // ==========================================
     // Start processing one job
@@ -225,7 +255,7 @@ class QueueManager {
 
         const completedJobs = Array.from(
             this.completedJobs.values()
-        );
+        ).sort((a, b) => a.queueNumber - b.queueNumber);
 
         return {
             waiting: waitingJobs,

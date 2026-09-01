@@ -25,7 +25,6 @@ if (!userId) {
     localStorage.setItem("binaire_user_id", userId);
 }
 
-
 // ==========================================
 // Socket Connection
 // ==========================================
@@ -40,98 +39,265 @@ socket.on("disconnect", () => {
     connectionStatus.textContent = "Disconnected";
 });
 
+// ==========================================
+// FILE SELECTION + VISUAL UPLOAD ORDER
+// ==========================================
 
-// Replace your current upload section in app.js with this
+let selectedFilePriorities = [];
 
-uploadForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-
+fileInput.addEventListener("change", () => {
     const files = Array.from(fileInput.files);
-    const priority = document.getElementById("priority").value;
+
+    const container = document.getElementById("selectedFilesContainer");
+    const selectedFiles = document.getElementById("selectedFiles");
+    const count = document.getElementById("selectedFileCount");
+
+    selectedFiles.innerHTML = "";
 
     if (files.length === 0) {
-        showMessage("Please select at least one CSV file.", "error");
+        container.classList.add("hidden");
+        fileName.textContent = "SELECT CSV FILES";
+        selectedFilePriorities = [];
         return;
     }
 
+    fileName.textContent = `${files.length} CSV FILES SELECTED`;
+
+    fileName.classList.remove("text-slate-400");
+    fileName.classList.add("text-[#8cff66]");
+
+    container.classList.remove("hidden");
+
+    count.textContent =
+        `${files.length} FILE${files.length > 1 ? "S" : ""}`;
+
+    // Default priority for every file
+    selectedFilePriorities = files.map(() => "low");
+
+    files.forEach((file, index) => {
+
+        const row = document.createElement("div");
+
+        row.className =
+            "flex flex-col gap-3 border-2 border-[#46564e] bg-[#0b0f0e] p-4 sm:flex-row sm:items-center sm:justify-between";
+
+        row.innerHTML = `
+            <div class="flex min-w-0 items-center gap-3">
+
+                <span class="text-[#8cff66] text-lg">
+                    ${String(index + 1).padStart(2, "0")}
+                </span>
+
+                <span class="text-[#8cff66]">
+                    ▣
+                </span>
+
+                <div class="min-w-0">
+                    <p class="truncate text-sm font-bold text-[#d8e8df]">
+                        ${escapeHTML(file.name)}
+                    </p>
+
+                    <p class="text-[10px] uppercase text-[#46564e]">
+                        ${(file.size / 1024).toFixed(1)} KB
+                    </p>
+                </div>
+
+            </div>
+
+            <select
+                class="file-priority w-full border-2 border-[#46564e] bg-[#111714] px-3 py-2 text-xs font-bold text-[#d8e8df] outline-none focus:border-[#8cff66] sm:w-40"
+                data-index="${index}"
+            >
+                <option value="high">HIGH PRIORITY</option>
+                <option value="low" selected>LOW PRIORITY</option>
+            </select>
+        `;
+
+        selectedFiles.appendChild(row);
+    });
+
+
+    // Listen for priority changes
+    document.querySelectorAll(".file-priority").forEach(select => {
+
+        select.addEventListener("change", () => {
+
+            const index = Number(select.dataset.index);
+
+            selectedFilePriorities[index] = select.value;
+
+        });
+
+    });
+});
+
+
+// ==========================================
+// UPLOAD FILES ONE BY ONE
+// ==========================================
+
+uploadForm.addEventListener("submit", async (event) => {
+
+    event.preventDefault();
+
+    const files = Array.from(fileInput.files);
+
+    if (files.length === 0) {
+
+        showMessage(
+            "PLEASE SELECT AT LEAST ONE CSV FILE.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    // Validate CSV files
     const invalidFile = files.find(
         file => !file.name.toLowerCase().endsWith(".csv")
     );
 
     if (invalidFile) {
-        showMessage("Only CSV files are allowed.", "error");
+
+        showMessage(
+            "ONLY CSV FILES ARE ALLOWED.",
+            "error"
+        );
+
         return;
     }
 
-    try {
-        uploadButton.disabled = true;
-        uploadButton.textContent = `Uploading ${files.length} files...`;
 
-        for (const file of files) {
+    const prioritySelectors =
+        document.querySelectorAll(".file-priority");
+
+
+    try {
+
+        uploadButton.disabled = true;
+
+
+        // Upload in exact visual order
+        for (let i = 0; i < files.length; i++) {
+
+            const file = files[i];
+
+            const priority =
+                prioritySelectors[i].value;
+
+
+            // Highlight currently uploading file
+            prioritySelectors[i].parentElement.classList.add(
+                "border-[#8cff66]"
+            );
+
+
+            uploadButton.textContent =
+                `UPLOADING ${i + 1}/${files.length}...`;
+
+
+            showMessage(
+                `UPLOADING ${i + 1}/${files.length}: ${file.name}`,
+                "info"
+            );
+
+
             const formData = new FormData();
 
-            formData.append("files", file);
-            formData.append("priority", priority);
-            formData.append("userId", userId);
+            formData.append("file", file);
 
-            const response = await fetch("/api/upload", {
-                method: "POST",
-                body: formData
-            });
+            formData.append(
+                "priority",
+                priority
+            );
+
+            formData.append(
+                "userId",
+                userId
+            );
+
+
+            const response = await fetch(
+                "/api/upload",
+                {
+                    method: "POST",
+                    body: formData
+                }
+            );
+
 
             const data = await response.json();
 
+
             if (!response.ok) {
+
                 throw new Error(
-                    data.message || `Failed to upload ${file.name}`
+                    data.message ||
+                    `FAILED: ${file.name}`
                 );
+
             }
+
+
+            // Show uploaded status
+            prioritySelectors[i].parentElement.innerHTML += `
+                <span class="text-[10px] font-bold text-[#8cff66]">
+                    ✓ UPLOADED
+                </span>
+            `;
+
+
+            // Small delay only for visual feedback
+            await new Promise(resolve =>
+                setTimeout(resolve, 500)
+            );
         }
 
+
         showMessage(
-            `${files.length} file(s) added to queue successfully.`,
+            `${files.length} FILE(S) ADDED TO QUEUE SUCCESSFULLY.`,
             "success"
         );
 
+
         uploadForm.reset();
-        fileName.textContent = "Click to select CSV file";
-        fileName.className = "text-sm text-slate-400";
+
+
+        document
+            .getElementById("selectedFilesContainer")
+            .classList.add("hidden");
+
+
+        document.getElementById(
+            "selectedFiles"
+        ).innerHTML = "";
+
+
+        fileName.textContent =
+            "SELECT CSV FILES";
+
+
+        selectedFilePriorities = [];
+
 
     } catch (error) {
+
         console.error(error);
 
         showMessage(
-            error.message || "Something went wrong.",
+            error.message || "UPLOAD FAILED.",
             "error"
         );
 
     } finally {
+
         uploadButton.disabled = false;
-        uploadButton.textContent = "Upload & Process";
+
+        uploadButton.textContent =
+            "UPLOAD & PROCESS";
     }
 });
-
-
-// Update the file selection section too
-
-fileInput.addEventListener("change", () => {
-
-    const files = Array.from(fileInput.files);
-
-    if (files.length === 0) {
-        fileName.textContent = "Click to select CSV files";
-        return;
-    }
-
-    fileName.textContent =
-        files.length === 1
-            ? files[0].name
-            : `${files.length} CSV files selected`;
-
-    fileName.classList.remove("text-slate-400");
-    fileName.classList.add("text-blue-400");
-});
-
 
 // ==========================================
 // Receive Queue Updates
@@ -142,7 +308,6 @@ socket.on("queue:update", (data) => {
     renderQueue(data);
 });
 
-
 // ==========================================
 // Receive Individual Job Updates
 // ==========================================
@@ -151,40 +316,32 @@ socket.on("job:update", (job) => {
     console.log("Job updated:", job);
 });
 
-
 // ==========================================
 // Statistics
 // ==========================================
 
 function updateStatistics(data) {
-
     waitingCount.textContent = data.totalWaiting || 0;
 
-    processingCount.textContent =
-        data.processing ? data.processing.length : 0;
+    processingCount.textContent = data.processing ? data.processing.length : 0;
 
-    completedCount.textContent =
-        data.completed ? data.completed.length : 0;
+    completedCount.textContent = data.completed ? data.completed.length : 0;
 
-    workerCount.textContent =
-        `${data.activeWorkers || 0} / ${data.maxWorkers || 2}`;
+    workerCount.textContent = `${data.activeWorkers || 0} / ${data.maxWorkers || 2}`;
 }
-
 
 // ==========================================
 // Render Queue
 // ==========================================
 
 function renderQueue(data) {
-
     const jobs = [
         ...(data.processing || []),
         ...(data.waiting || []),
-        ...(data.completed || [])
+        ...(data.completed || []),
     ];
 
     if (jobs.length === 0) {
-
         emptyQueue.classList.remove("hidden");
 
         queueContainer.innerHTML = "";
@@ -198,20 +355,17 @@ function renderQueue(data) {
     queueContainer.innerHTML = "";
 
     jobs.forEach((job) => {
-
         const card = createJobCard(job);
 
         queueContainer.appendChild(card);
     });
 }
 
-
 // ==========================================
 // Create Job Card
 // ==========================================
 
 function createJobCard(job) {
-
     const card = document.createElement("div");
 
     card.className =
@@ -227,7 +381,6 @@ function createJobCard(job) {
     let progressHTML = "";
 
     if (job.status === "Processing...") {
-
         progressHTML = `
             <div class="mt-4">
                 <div class="mb-2 flex justify-between text-xs">
@@ -248,7 +401,6 @@ function createJobCard(job) {
     let resultHTML = "";
 
     if (job.status === "Completed") {
-
         resultHTML = `
             <div class="mt-4 rounded-lg border border-green-500/20 bg-green-500/5 p-3">
                 <p class="text-xs text-slate-400">
@@ -290,11 +442,10 @@ function createJobCard(job) {
                         Process ID: ${job.processId}
                     </span>
 
-                    ${
-                        job.queuePosition
-                            ? `<span>Position: ${job.queuePosition}</span>`
-                            : ""
-                    }
+                    ${job.queuePosition
+            ? `<span>Position: ${job.queuePosition}</span>`
+            : ""
+        }
 
                 </div>
 
@@ -318,15 +469,12 @@ function createJobCard(job) {
     return card;
 }
 
-
 // ==========================================
 // Status Colors
 // ==========================================
 
 function getStatusClass(status) {
-
     switch (status) {
-
         case "Processing...":
             return "bg-blue-500/10 text-blue-400 border-blue-500/20";
 
@@ -344,13 +492,11 @@ function getStatusClass(status) {
     }
 }
 
-
 // ==========================================
 // Message
 // ==========================================
 
 function showMessage(message, type) {
-
     uploadMessage.classList.remove(
         "hidden",
         "bg-red-500/10",
@@ -358,56 +504,43 @@ function showMessage(message, type) {
         "bg-green-500/10",
         "text-green-400",
         "bg-blue-500/10",
-        "text-blue-400"
+        "text-blue-400",
     );
 
     if (type === "error") {
-        uploadMessage.classList.add(
-            "bg-red-500/10",
-            "text-red-400"
-        );
+        uploadMessage.classList.add("bg-red-500/10", "text-red-400");
     }
 
     if (type === "success") {
-        uploadMessage.classList.add(
-            "bg-green-500/10",
-            "text-green-400"
-        );
+        uploadMessage.classList.add("bg-green-500/10", "text-green-400");
     }
 
     if (type === "info") {
-        uploadMessage.classList.add(
-            "bg-blue-500/10",
-            "text-blue-400"
-        );
+        uploadMessage.classList.add("bg-blue-500/10", "text-blue-400");
     }
 
     uploadMessage.textContent = message;
 }
-
 
 // ==========================================
 // Format Number
 // ==========================================
 
 function formatNumber(value) {
-
     if (typeof value !== "number") {
         return value;
     }
 
     return value.toLocaleString("en-US", {
-        maximumFractionDigits: 10
+        maximumFractionDigits: 10,
     });
 }
-
 
 // ==========================================
 // Prevent HTML Injection
 // ==========================================
 
 function escapeHTML(value) {
-
     return String(value)
         .replaceAll("&", "&amp;")
         .replaceAll("<", "&lt;")

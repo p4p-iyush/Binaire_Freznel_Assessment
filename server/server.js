@@ -62,18 +62,18 @@ app.get("/api/queue", (req, res) => {
 });
 
 // Upload CSV
-app.post("/api/upload", upload.array("files"), (req, res) => {
+app.post("/api/upload", upload.single("file"), (req, res) => {
 
     try {
-        if (!req.files || req.files.length === 0) {
+        if (!req.file) {
             return res.status(400).json({
                 success: false,
-                message: "No CSV files uploaded"
+                message: "No CSV file uploaded"
             });
         }
 
-        const priority = req.body.priority || "low";
         const userId = req.body.userId || "anonymous";
+        const priority = req.body.priority || "low";
 
         if (!["high", "low"].includes(priority)) {
             return res.status(400).json({
@@ -82,26 +82,25 @@ app.post("/api/upload", upload.array("files"), (req, res) => {
             });
         }
 
-        const jobs = req.files.map(file => {
-            return queueManager.addJob({
-                userId,
-                file,
-                priority
-            });
+        const job = queueManager.addJob({
+            userId,
+            file: req.file,
+            priority
         });
 
         res.status(201).json({
             success: true,
-            message: `${jobs.length} file(s) added to queue`,
-            jobs
+            message: "File added to queue",
+            job
         });
 
     } catch (error) {
+
         console.error("Upload error:", error);
 
         res.status(500).json({
             success: false,
-            message: "Failed to upload files"
+            message: error.message || "Failed to upload file"
         });
     }
 });

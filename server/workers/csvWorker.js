@@ -34,7 +34,7 @@ async function processCSV() {
         });
 
         for await (const line of rl) {
-            const values = line.split(",");
+            const values = line.trim().split(/[\s,]+/);
 
             for (const value of values) {
                 const number = Number(value.trim());
